@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<CONFIG>
+  <Package Version="4">
+    <Name Value="TMQTTClient"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <SearchPaths>
+        <OtherUnitFiles Value="MQTTsynapse"/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)/"/>
+      </SearchPaths>
+      <Other>
+        <CompilerMessages>
+          <MsgFileName Value=""/>
+        </CompilerMessages>
+        <CompilerPath Value="$(CompPath)"/>
+      </Other>
+    </CompilerOptions>
+    <Files Count="8">
+      <Item1>
+        <Filename Value="MQTTComponent.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="MQTTComponent"/>
+      </Item1>
+      <Item2>
+        <Filename Value="MQTTComponentReadThread.pas"/>
+        <UnitName Value="MQTTComponentReadThread"/>
+      </Item2>
+      <Item3>
+        <Filename Value="MQTTsynapse/MQTTblcksock.pas"/>
+        <UnitName Value="MQTTblcksock"/>
+      </Item3>
+      <Item4>
+        <Filename Value="MQTTsynapse/MQTTsynacode.pas"/>
+        <UnitName Value="MQTTsynacode"/>
+      </Item4>
+      <Item5>
+        <Filename Value="MQTTsynapse/MQTTsynafpc.pas"/>
+        <UnitName Value="MQTTsynafpc"/>
+      </Item5>
+      <Item6>
+        <Filename Value="MQTTsynapse/MQTTsynaip.pas"/>
+        <UnitName Value="MQTTsynaip"/>
+      </Item6>
+      <Item7>
+        <Filename Value="MQTTsynapse/MQTTsynautil.pas"/>
+        <UnitName Value="MQTTsynautil"/>
+      </Item7>
+      <Item8>
+        <Filename Value="MQTTsynapse/MQTTsynsock.pas"/>
+        <UnitName Value="MQTTsynsock"/>
+      </Item8>
+    </Files>
+    <Type Value="RunAndDesignTime"/>
+    <RequiredPkgs Count="1">
+      <Item1>
+        <PackageName Value="FCL"/>
+      </Item1>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>
