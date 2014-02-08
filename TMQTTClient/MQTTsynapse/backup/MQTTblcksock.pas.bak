@@ -2758,7 +2758,11 @@ begin
     TimeVal := nil;
   FDSet := FFdSet;
   x := MQTTsynsock.Select(FSocket + 1, @FDSet, nil, nil, TimeVal);
-  SockCheck(x);
+  try
+    SockCheck(x);
+  except
+    result := false;
+  end;
   if FLastError <> 0 then
     x := 0;
   Result := x > 0;
@@ -4346,7 +4350,7 @@ end;
 finalization
 begin
 {$IFDEF ONCEWINSOCK}
-  synsock.WSACleanup;
+  MQTTsynsock.WSACleanup;
   DestroySocketInterface;
 {$ENDIF}
 end;

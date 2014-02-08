@@ -156,6 +156,7 @@ type
           constructor Create(AOwner: TComponent);
           overload;
           procedure init;
+          procedure deInit;
           destructor Destroy;
           override;
 
@@ -276,10 +277,13 @@ type
           if SocketWrite(Data) then
             begin
               Result := True;
-              FReadThread.Terminate;
+              writeln('terminate...');
+              FReadThread.WaitFor; //terminate the thread, don't return until it has terminated
+              writeln('terminated');
               FSocket.CloseSocket;
               FisConnected := False;
               FSocket.Free;
+              FSocket := nil;
             end
           else Result := False;
         end;
@@ -490,34 +494,34 @@ type
 ------------------------------------------------------------------------------*}
         constructor TMQTTClient.Create(AOwner: TComponent);
         begin
-          writeln('TMQTTClient.Create();');
           inherited Create(AOwner);
-
+          FReaderThreadRunning := false;
 
         end;
 
         procedure TMQTTClient.init;
         begin
-          FMessageID := 1;
-          FReaderThreadRunning := false;
           InitCriticalSection(FCritical);
+          FMessageID := 1;
           FMessageQueue := TQueue.Create;
           FMessageAckQueue := TQueue.Create;
         end;
 
+        procedure TMQTTClient.deInit;
+        begin
+          if assigned(FSocket) then begin
+            FSocket.free;
+            FSocket := nil;
+          end;
+          FMessageQueue.free;
+          FMessageAckQueue.free;
+          DoneCriticalSection(FCritical);
+        end;
+
         destructor TMQTTClient.Destroy;
         begin
-          writeln('TMQTTClient.Destroy();');
-          FSocket.free;
-          writeln('TMQTTClient.Destroy(); - socket freed');
-          FMessageQueue.free;
-          writeln('TMQTTClient.Destroy(); - message queue freed');
-          FMessageAckQueue.free;
-          writeln('TMQTTClient.Destroy(); - message ack queue freed');
-          DoneCriticalSection(FCritical);
-          writeln('TMQTTClient.Destroy(); - critical section done');
+
           inherited Destroy;
-          writeln('TMQTTClient.Destroy(); - inherited destroy done');
         end;
 
         function FixedHeader(MessageType: TMQTTMessageType; Dup, Qos,
@@ -717,7 +721,9 @@ type
             end;
           if Assigned(OnConnAck) then
             begin
+              EnterCriticalSection (FCritical);
               OnConnAck(Self, ReturnCode);
+              LeaveCriticalSection (FCritical);
             end
           else
             begin
@@ -735,7 +741,9 @@ type
       begin
         if Assigned(OnPingResp) then
           begin
+            EnterCriticalSection (FCritical);
             OnPingResp(Self);
+            LeaveCriticalSection (FCritical);
           end
         else
           begin
@@ -753,7 +761,9 @@ type
       begin
         if Assigned(OnPublish) then
           begin
+            EnterCriticalSection (FCritical);
             OnPublish(Self, topic, payload);
+            LeaveCriticalSection (FCritical);
           end
         else
           begin
@@ -771,7 +781,9 @@ type
       begin
         if Assigned(OnSubAck) then
         begin
+          EnterCriticalSection (FCritical);
           OnSubAck(Self, MessageID, GrantedQoS);
+          LeaveCriticalSection (FCritical);
         end
       else
         begin
@@ -789,7 +801,9 @@ type
       begin
         if Assigned(OnUnSubAck) then
           begin
+            EnterCriticalSection (FCritical);
             OnUnSubAck(Self, MessageID);
+            LeaveCriticalSection (FCritical);
           end
         else
           begin
