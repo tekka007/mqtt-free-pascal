@@ -12,3 +12,6 @@ bin/*
 *.ppu
 *.*~
 examples/embeddedApp/embeddedApp
+TMQTTClient/backup
+TMQTTClient/lib
+
