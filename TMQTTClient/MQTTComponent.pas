@@ -523,6 +523,7 @@ type
 
         destructor TMQTTClient.Destroy;
         begin
+          FPermitTerminate:=true;
           if assigned(FSocket) then begin
             FSocket.free;
             FSocket := nil;
