@@ -153,10 +153,8 @@ type
           function PingReq: boolean;
           function  getMessage : TMQTTMessage;
           function  getMessageAck : TMQTTMessageAck;
-          constructor Create(AOwner: TComponent);
+          constructor Create(AOwner: TComponent); override;
           overload;
-          procedure init;
-          procedure deInit;
           destructor Destroy;
           override;
 
@@ -271,21 +269,23 @@ type
           writeln('TMQTTClient.Disconnect();');
           Result := False;
 
-          SetLength(Data, 2);
-          Data[0] := FixedHeader(MQTTComponent.DISCONNECT, 0, 0, 0);
-          Data[1] := 0;
-          if SocketWrite(Data) then
-            begin
-              Result := True;
-              writeln('terminate...');
-              FReadThread.WaitFor; //terminate the thread, don't return until it has terminated
-              writeln('terminated');
-              FSocket.CloseSocket;
-              FisConnected := False;
-              FSocket.Free;
-              FSocket := nil;
-            end
-          else Result := False;
+          if FisConnected then begin
+            SetLength(Data, 2);
+            Data[0] := FixedHeader(MQTTComponent.DISCONNECT, 0, 0, 0);
+            Data[1] := 0;
+            if SocketWrite(Data) then
+              begin
+                Result := True;
+                writeln('terminate...');
+                FReadThread.WaitFor; //terminate the thread, don't return until it has terminated
+                writeln('terminated');
+                FSocket.CloseSocket;
+                FisConnected := False;
+                FSocket.Free;
+                FSocket := nil;
+              end
+            else Result := False;
+          end;
         end;
 
 
@@ -339,7 +339,7 @@ type
           RL: Byte;
           Data: TBytes;
         begin
-          writeln('TMQTTClient.PingReq();');
+          //writeln('TMQTTClient.PingReq();');
           Result := False;
 
           SetLength(Data, 2);
@@ -372,17 +372,26 @@ type
           VH: TBytes;
           Payload: TUTF8Text;
         begin
-          writeln('TMQTTClient.Publish();');
-          Result := False;
-
-          FH := FixedHeader(MQTTComponent.PUBLISH, 0, 0, Ord(Retain));
-          VH := VariableHeaderPublish(Topic);
-          SetLength(Payload, 0);
-          AppendArray(Payload, StrToBytes(sPayload, false));
-          RL := RemainingLength(Length(VH) + Length(Payload));
-          Data := BuildCommand(FH, RL, VH, Payload);
-          if SocketWrite(Data) then Result := True
-          else Result := False;
+          if FisConnected then begin
+            writeln('TMQTTClient.Publish(' + topic + ');');
+            Result := False;
+            if (Topic <> '') then begin
+              FH := FixedHeader(MQTTComponent.PUBLISH, 0, 0, Ord(Retain));
+              VH := VariableHeaderPublish(Topic);
+              SetLength(Payload, 0);
+              AppendArray(Payload, StrToBytes(sPayload, false));
+              RL := RemainingLength(Length(VH) + Length(Payload));
+              Data := BuildCommand(FH, RL, VH, Payload);
+              if SocketWrite(Data) then Result := True
+              else Result := False;
+            end else
+            begin
+              raise Exception.Create('Published to blank topic string');
+            end;
+          end else
+          begin
+            raise Exception.Create('Published without connection');
+          end;
         end;
 
 
@@ -481,7 +490,7 @@ type
 ------------------------------------------------------------------------------*}
         function TMQTTClient.isConnected: boolean;
         begin
-          writeln('TMQTTClient.isConnected();');
+          //writeln('TMQTTClient.isConnected();');
           Result := FisConnected;
         end;
 
@@ -494,33 +503,32 @@ type
 ------------------------------------------------------------------------------*}
         constructor TMQTTClient.Create(AOwner: TComponent);
         begin
-          inherited Create(AOwner);
+
+          writeln('I am the MQTT constructor!');
           FReaderThreadRunning := false;
-
-        end;
-
-        procedure TMQTTClient.init;
-        begin
+          FisConnected:=false;
           InitCriticalSection(FCritical);
           FMessageID := 1;
           FMessageQueue := TQueue.Create;
           FMessageAckQueue := TQueue.Create;
+          inherited Create(AOwner);
         end;
 
-        procedure TMQTTClient.deInit;
+        destructor TMQTTClient.Destroy;
         begin
           if assigned(FSocket) then begin
             FSocket.free;
             FSocket := nil;
           end;
+          if FReaderThreadRunning then begin
+             if assigned(FReadThread) then begin
+               FReadThread.WaitFor;
+               FReadThread := nil;
+             end;
+          end;
           FMessageQueue.free;
           FMessageAckQueue.free;
           DoneCriticalSection(FCritical);
-        end;
-
-        destructor TMQTTClient.Destroy;
-        begin
-
           inherited Destroy;
         end;
 
@@ -556,11 +564,18 @@ type
         begin
           Result := False;
           // Returns whether the Data was successfully written to the socket.
-          if isConnected then
+          if fisConnected then
             begin
-              sentData := FSocket.SendBuffer(Pointer(Data), Length(Data));
-              if sentData = Length(Data) then Result := True
-              else Result := False;
+              try
+                sentData := FSocket.SendBuffer(Pointer(Data), Length(Data));
+                if sentData = Length(Data) then Result := True
+                else Result := False;
+              except
+                Result := false;
+              end;
+            end else
+            begin
+              raise Exception.Create('Attempted socket write without connection');
             end;
         end;
 
