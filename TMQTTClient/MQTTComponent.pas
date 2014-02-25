@@ -121,6 +121,8 @@ type
           FMessageQueue       : TQueue;
           FMessageAckQueue    : TQueue;
 
+          FPermitTerminate: boolean;
+
           // Gets a next Message ID and increases the Message ID Increment
           function GetMessageID: TBytes;
           function VariableHeaderPublish(topic: ansistring): TBytes;
@@ -157,6 +159,7 @@ type
           overload;
           destructor Destroy;
           override;
+          property CanTerminate: boolean read FPermitTerminate write FPermitTerminate;
 
         published
           property ClientID : ansistring read FClientID write FClientID;
@@ -167,6 +170,7 @@ type
           property OnPingResp : TPingRespEvent read FPingRespEvent write FPingRespEvent;
           property OnSubAck : TSubAckEvent read FSubAckEvent write FSubAckEvent;
           property OnUnSubAck : TUnSubAckEvent read FUnSubAckEvent write FUnSubAckEvent;
+
         end;
 
         // Message Component Build helpers
@@ -248,6 +252,7 @@ type
                   FReadThread.OnTerminate := @OnRTTerminate;
                   FReadThread.Start;
                   FReaderThreadRunning := true;
+                  FPermitTerminate := false;
                 end;
             end;
         end;
@@ -268,7 +273,7 @@ type
         begin
           writeln('TMQTTClient.Disconnect();');
           Result := False;
-
+          FPermitTerminate := true;
           if FisConnected then begin
             SetLength(Data, 2);
             Data[0] := FixedHeader(MQTTComponent.DISCONNECT, 0, 0, 0);
@@ -321,6 +326,9 @@ type
         procedure TMQTTClient.OnRTTerminate(Sender: TObject);
         begin
           writeln('TMQTTClient.OnRTTerminate();');
+          if not FPermitTerminate then begin
+            raise exception.Create('Unexpected Termination of read thread.');
+          end;
           FReaderThreadRunning := false;
         end;
 
@@ -503,14 +511,13 @@ type
 ------------------------------------------------------------------------------*}
         constructor TMQTTClient.Create(AOwner: TComponent);
         begin
-
-          writeln('I am the MQTT constructor!');
           FReaderThreadRunning := false;
           FisConnected:=false;
           InitCriticalSection(FCritical);
           FMessageID := 1;
           FMessageQueue := TQueue.Create;
           FMessageAckQueue := TQueue.Create;
+          FPermitTerminate := false;
           inherited Create(AOwner);
         end;
 

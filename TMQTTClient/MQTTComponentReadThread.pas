@@ -78,11 +78,15 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
       FSubAckEvent: TSubAckEvent;
       FUnSubAckEvent: TUnSubAckEvent;
 
+      syncTopic, syncPayload: ansistring;
+
 
 
 
 // Takes a 2 Byte Length array and returns the length of the ansistring it preceeds as per the spec.
       function BytesToStrLength(LengthBytes: TBytes): integer;
+
+      procedure syncPublish;
 
       // This is our data processing and event firing command.
       procedure HandleData;
@@ -99,6 +103,7 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
       property OnPingResp : TPingRespEvent read FPingRespEvent write FPingRespEvent;
       property OnSubAck : TSubAckEvent read FSubAckEvent write FSubAckEvent;
       property OnUnSubAck : TUnSubAckEvent read FUnSubAckEvent write FUnSubAckEvent;
+
     end;
 
     implementation
@@ -214,6 +219,12 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
         end;
     end;
 
+
+    procedure TMQTTReadThread.syncPublish;
+    begin
+      OnPublish(Self, syncTopic, syncPayload);
+    end;
+
     procedure TMQTTReadThread.HandleData;
 
     var 
@@ -249,7 +260,11 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                 // Get the Payload
                 SetString(Payload, PChar(@CurrentMessage.Data[2 + DataLen]),
                 (Length(CurrentMessage.Data) - 2 - DataLen));
-                if Assigned(OnPublish) then OnPublish(Self, Topic, Payload);
+                //if Assigned(OnPublish) then OnPublish(Self, Topic, Payload);
+                syncTopic := topic;
+                syncPayload := Payload;
+                if Assigned(OnPublish) then
+                  Synchronize(@syncPublish);
               end
           else
             if (MessageType = Ord(MQTTComponent.SUBACK)) then
