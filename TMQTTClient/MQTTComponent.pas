@@ -146,6 +146,7 @@ type
           function isConnected: boolean;
           procedure Connect;
           function Disconnect: boolean;
+          procedure FullDisconnect;
           procedure ForceDisconnect;
           function Publish(Topic: ansistring; sPayload: ansistring): boolean;
           overload;
@@ -328,7 +329,14 @@ type
         end;
 
 
-
+ procedure TMQTTClient.FullDisconnect;
+ begin
+   if isConnected or ReaderThreadRunning then begin
+    if not Disconnect then begin
+      ForceDisconnect;
+    end;
+  end;
+ end;
 
 {*------------------------------------------------------------------------------
   Call back for reader thread termination.
