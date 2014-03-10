@@ -123,6 +123,7 @@ type
 
           FPermitTerminate: boolean;
 
+
           // Gets a next Message ID and increases the Message ID Increment
           function GetMessageID: TBytes;
           function VariableHeaderPublish(topic: ansistring): TBytes;
@@ -160,7 +161,7 @@ type
           destructor Destroy;
           override;
           property CanTerminate: boolean read FPermitTerminate write FPermitTerminate;
-
+          property ReaderThreadRunning: boolean read FReaderThreadRunning;
         published
           property ClientID : ansistring read FClientID write FClientID;
           property Hostname: ansistring read FHostname write FHostname;
@@ -274,22 +275,31 @@ type
           writeln('TMQTTClient.Disconnect();');
           Result := False;
           FPermitTerminate := true;
-          if FisConnected then begin
-            SetLength(Data, 2);
-            Data[0] := FixedHeader(MQTTComponent.DISCONNECT, 0, 0, 0);
-            Data[1] := 0;
-            if SocketWrite(Data) then
-              begin
-                Result := True;
-                writeln('terminate...');
-                FReadThread.WaitFor; //terminate the thread, don't return until it has terminated
-                writeln('terminated');
-                FSocket.CloseSocket;
-                FisConnected := False;
-                FSocket.Free;
-                FSocket := nil;
-              end
-            else Result := False;
+
+          if  FReadThread.hasDied then begin
+            FReadThread.Terminate;
+            FReadThread.WaitFor;
+          end else begin
+
+            if FisConnected then begin
+              SetLength(Data, 2);
+              Data[0] := FixedHeader(MQTTComponent.DISCONNECT, 0, 0, 0);
+              Data[1] := 0;
+              if SocketWrite(Data) then
+                begin
+                  Result := True;
+                  writeln('terminate...');
+                  FReadThread.Terminate;
+                  FReadThread.WaitFor; //terminate the thread, don't return until it has terminated
+                  writeln('terminated');
+                  FSocket.CloseSocket;
+                  FisConnected := False;
+                  FSocket.Free;
+                  FSocket := nil;
+                end
+              else Result := False;
+            end;
+
           end;
         end;
 
@@ -530,6 +540,7 @@ type
           end;
           if FReaderThreadRunning then begin
              if assigned(FReadThread) then begin
+               FReadThread.Terminate;
                FReadThread.WaitFor;
                FReadThread := nil;
              end;
@@ -745,8 +756,11 @@ type
           if Assigned(OnConnAck) then
             begin
               EnterCriticalSection (FCritical);
-              OnConnAck(Self, ReturnCode);
-              LeaveCriticalSection (FCritical);
+              try
+                OnConnAck(Self, ReturnCode);
+              finally
+                LeaveCriticalSection (FCritical);
+              end;
             end
           else
             begin
@@ -765,8 +779,11 @@ type
         if Assigned(OnPingResp) then
           begin
             EnterCriticalSection (FCritical);
+            try
             OnPingResp(Self);
+            finally
             LeaveCriticalSection (FCritical);
+            end;
           end
         else
           begin
@@ -785,8 +802,11 @@ type
         if Assigned(OnPublish) then
           begin
             EnterCriticalSection (FCritical);
-            OnPublish(Self, topic, payload);
-            LeaveCriticalSection (FCritical);
+            try
+              OnPublish(Self, topic, payload);
+            finally
+              LeaveCriticalSection (FCritical);
+            end;
           end
         else
           begin
@@ -805,8 +825,11 @@ type
         if Assigned(OnSubAck) then
         begin
           EnterCriticalSection (FCritical);
-          OnSubAck(Self, MessageID, GrantedQoS);
-          LeaveCriticalSection (FCritical);
+          try
+            OnSubAck(Self, MessageID, GrantedQoS);
+          finally
+            LeaveCriticalSection (FCritical);
+          end;
         end
       else
         begin
@@ -825,8 +848,11 @@ type
         if Assigned(OnUnSubAck) then
           begin
             EnterCriticalSection (FCritical);
-            OnUnSubAck(Self, MessageID);
-            LeaveCriticalSection (FCritical);
+            try
+              OnUnSubAck(Self, MessageID);
+            finally
+              LeaveCriticalSection (FCritical);
+            end;
           end
         else
           begin

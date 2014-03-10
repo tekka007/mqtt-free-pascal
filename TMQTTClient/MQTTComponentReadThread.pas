@@ -78,6 +78,8 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
       FSubAckEvent: TSubAckEvent;
       FUnSubAckEvent: TUnSubAckEvent;
 
+      FErrorDie: boolean;
+
       syncTopic, syncPayload: ansistring;
 
 
@@ -103,7 +105,7 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
       property OnPingResp : TPingRespEvent read FPingRespEvent write FPingRespEvent;
       property OnSubAck : TSubAckEvent read FSubAckEvent write FSubAckEvent;
       property OnUnSubAck : TUnSubAckEvent read FUnSubAckEvent write FUnSubAckEvent;
-
+      property hasDied: boolean read FErrorDie;
     end;
 
     implementation
@@ -124,6 +126,7 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
       FHostname := Hostname;
       FPort := Port;
       FreeOnTerminate := true;
+      FErrorDie := false;
     end;
 
     procedure TMQTTReadThread.Execute;
@@ -166,6 +169,7 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                         else
                           begin
                             rxState := RX_ERROR;
+                            FErrorDie:=true;
                           end;
                       end;
             RX_FIXED_HEADER:
@@ -175,8 +179,10 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                                CurrentMessage.Data := nil;
                                CurrentMessage.FixedHeader := FPSocket^.RecvByte(1000);
                                if (FPSocket^.LastError = ESysETIMEDOUT) then continue;
-                               if (FPSocket^.LastError <> 0) then
-                                 rxState := RX_ERROR
+                               if (FPSocket^.LastError <> 0) then begin
+                                 rxState := RX_ERROR;
+                                 FErrorDie:=true;
+                               end
                                else
                                  rxState := RX_LENGTH;
                              end;
@@ -184,8 +190,10 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                        begin
                          digit := FPSocket^.RecvByte(1000);
                          if (FPSocket^.LastError = ESysETIMEDOUT) then continue;
-                         if (FPSocket^.LastError <> 0) then
-                           rxState := RX_ERROR
+                         if (FPSocket^.LastError <> 0) then begin
+                           rxState := RX_ERROR;
+                           FErrorDie:=true;
+                         end
                          else
                            begin
                              remainingLengthx := remainingLengthx + (digit and 127) * multiplier;
@@ -202,8 +210,10 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                      begin
                        SetLength(CurrentMessage.Data, remainingLengthx);
                        FPSocket^.RecvBufferEx(Pointer(CurrentMessage.Data), remainingLengthx, 1000);
-                       if (FPSocket^.LastError <> 0) then
-                         rxState := RX_ERROR
+                       if (FPSocket^.LastError <> 0) then begin
+                         rxState := RX_ERROR;
+                         FErrorDie:=true;
+                       end
                        else
                          begin
                            HandleData;
@@ -211,9 +221,7 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
                          end;
                      end;
             RX_ERROR:
-                      begin
-                        // Quit the loop, terminating the thread. 
-                        break;
+                      begin  //idle until the library handles the error state
                       end;
           end;
         end;
@@ -315,15 +323,27 @@ type TRxStates = (RX_START, RX_FIXED_HEADER, RX_LENGTH, RX_DATA, RX_ERROR);
 
     var 
       sentData: integer;
+      count: integer;
     begin
       Result := False;
+      count := 0;
       // Returns whether the Data was successfully written to the socket.
-      while not FPSocket^.CanWrite(0) do
+      while (not FPSocket^.CanWrite(0)) do
       begin
+        writeln('can''t write');
+        inc(count);
+        try
         sleep(100);
+        finally
+        end;
+        if self.Terminated or (count>=10) then begin
+          break;
+        end;
       end;
-      sentData := FPSocket^.SendBuffer(Pointer(Data), Length(Data));
-      if sentData = Length(Data) then
-        Result := True
+      if (not self.Terminated) and (not (count>=10)) then begin
+        sentData := FPSocket^.SendBuffer(Pointer(Data), Length(Data));
+        if sentData = Length(Data) then
+          Result := True
+      end;
     end;
   end.
